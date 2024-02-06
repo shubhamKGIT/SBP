@@ -1,6 +1,5 @@
 
-""" above line is for when you wanna make this file executable and needs its to know which python version to launch it with,
-    select the right interpreter using Crtl + Shift + P
+""" select the right interpreter using Crtl + Shift + P, use Python 3.9.x
 """
 import sys
 import os
@@ -10,24 +9,63 @@ import scipy as sp
 import matplotlib.pyplot as plt
 import cv2
 import pandas as pd
+import seaborn as sns
 
 class Pyrodata():
-    def __init__(self, filePaths: list[str]):
-        self.filepaths = filePaths
+    def __init__(self, 
+                 basepath: pathlib.Path = None, 
+                 filenames: list[str] = ["sample_video_high-speed.mp4", "sample-spectra-with-lambda.csv",],
+                 experiment: int = 1
+                 ):
+        "give path as parent folder of data which has nested folders with expreriment number"
+        if filenames is not None:
+            self.video_spectra = Files(experiment)
+            self.filepaths = self.video_spectra.files(basepath, filenames)
+        else:
+            print("no files passed, using sample files to run")
     
-    def files(self):
-        return f"[]"
+    def read_spectral_data(self, columns: list[str] = None):
+        if columns is None:
+            cols = ["Frame","Row","Column","Wavelength","Intensity"]
+        else:
+            cols = columns
+        self.spectra = self.video_spectra.read_csv(self.filepaths[1], delimiter=",", cols=cols)
+
+    def add_radiation_cols(self):
+        self.C2 = 14400
+        self.spectra["y"] = np.log(self.spectra["Intensity"]*(self.spectra["Wavelength"]**5))
+        self.spectra["y_smooth"] = self.spectra["y"].rolling(window=30).mean()
+        self.spectra["x"] = self.C2/(self.spectra["Wavelength"])
+    
+    def calc_T(self):
+        self.spectra["del_y"] = self.spectra["y_smooth"].diff()
+        self.spectra["del_x"] = self.spectra["x"].diff()
+        self.spectra["T_0"] = - self.spectra["del_y"]/ self.spectra["del_x"]
+        self.x_0 = self.C2/520.0
+    
+    def plot_spectra(self, args=["Wavelength", "Intensity"]):
+        fig = plt.figure(figsize = (8, 8))
+        #plt.plot(self.spectra["Wavelength"], self.spectra["Intensity"])
+        sns.lineplot(data=self.spectra, x=args[0], y=args[1], hue="Frame")
+        plt.show()
 
 class Files():
     def __init__(self, exp_number: int = 0):
         self.exp_num = f"{exp_number:03d}"
 
-    def files(self, refNames = ["sample_video_file.mp4", "spectra.csv"]):
+    def files(self, basepath: pathlib.Path = None, refNames = ["video_file.mp4", "spectra.csv"]):
         "get the file locations and pointers"
         #file = sys.argv[0]
-        filepath = pathlib.Path(__file__).resolve()
+        try:
+            if basepath is not None:
+                self.dir = basepath.resolve()
+            else:
+                filepath = pathlib.Path(__file__).resolve()
+                self.dir = filepath.parent
+        except:
+            raise Exception("unable to resolve base path, give data in nested file directory or give data directory as pathlib.Path object")
+        
         self.fileRefNames: list[str] = refNames
-        self.dir = filepath.parent
         self.dataDir, _ = os.path.split(self.dir)
         self.dataFiles = [os.path.join(self.dataDir, "data", self.exp_num, _) for _ in self.fileRefNames]
         return self.dataFiles
@@ -45,7 +83,16 @@ class Files():
     
     def read_video(self, filepath):
         pass
-    
+
+def test_data_obj():
+    "to test the Pyrodata object"
+    mydata = Pyrodata(experiment=1)
+    mydata.read_spectral_data()
+    mydata.add_radiation_cols()
+    mydata.calc_T()
+    #mydata.spectra["grad"].head(5)
+    mydata.plot_spectra(["x", "T_0"])
+
 def test_files():
     "basic test for first time code test"
     EXP_No = 1
@@ -96,11 +143,12 @@ if __name__== "__main__":
     #DATA_DIR = os.path.join(DIR, "data")
     #MY_FILES = [os.path.join(DIR, "data", file) for file in DATA_FILES]
     #print(f"file to open : {MY_FILES}")
-    exp_files = test_files()
-    csvFile = exp_files[1]
-    print(f"csv file: {csvFile}")
+    #exp_files = test_files()
+    #csvFile = exp_files[1]
+    #print(f"csv file: {csvFile}")
     #print(pd.read_csv(csvFile).head())
     #dataframe = pd.read_csv(exp_files[1])
     spectra_frames = test_csv()
     spectra_frames.head(1)
-    test_video()
+    #test_video()
+    test_data_obj()
