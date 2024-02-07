@@ -30,23 +30,79 @@ class Pyrodata():
         else:
             cols = columns
         self.spectra = self.video_spectra.read_csv(self.filepaths[1], delimiter=",", cols=cols)
-
-    def add_radiation_cols(self):
-        self.C2 = 14400
-        self.spectra["y"] = np.log(self.spectra["Intensity"]*(self.spectra["Wavelength"]**5))
-        self.spectra["y_smooth"] = self.spectra["y"].rolling(window=30).mean()
-        self.spectra["x"] = self.C2/(self.spectra["Wavelength"])
-    
-    def calc_T(self):
-        self.spectra["del_y"] = self.spectra["y_smooth"].diff()
-        self.spectra["del_x"] = self.spectra["x"].diff()
-        self.spectra["T_0"] = - self.spectra["del_y"]/ self.spectra["del_x"]
-        self.x_0 = self.C2/520.0
     
     def plot_spectra(self, args=["Wavelength", "Intensity"]):
         fig = plt.figure(figsize = (8, 8))
         #plt.plot(self.spectra["Wavelength"], self.spectra["Intensity"])
         sns.lineplot(data=self.spectra, x=args[0], y=args[1], hue="Frame")
+        plt.show()
+
+    def add_radiation_cols(self):
+        """ y = Intesnity /lambda**5 
+            x = C2/ lambda
+            - need to chunk the spectra wrt frames before doing smoothing
+            - might explore smoothing before scaling with powers of lambda
+            - can be plotted with plot_spectra() method
+        """
+        self.C2 = 14400*1000    # multiplied by 1K because we have lambda in nm
+        self.x_0 = self.C2 / 520.0     # getting reference variable value for filter
+        self.spectra["y"] = np.log(self.spectra["Intensity"]*(self.spectra["Wavelength"]**5))
+        self.spectra["x"] = self.C2/(self.spectra["Wavelength"])
+
+    def get_spectral_frames(self):
+        "y_smoothing will require chunking the spectra with frames and filling the NA values"
+        self.frames: dict[int, pd.DataFrame] = {k: v for _, (k,v) in enumerate(self.spectra.groupby("Frame"))}
+
+    def analyse_spectra(self):
+        " check the functional variation of the intensity registered vs. intensity from surface"
+        pass
+    
+    def calc_framewise_rad_vars(self, use_smoothed_y: bool = True, smooth_window = 30):
+        "calculate the y_diff, x_diff, T_Os and exact T_0 for X_0 for all spectral frames"
+        
+        try:
+            if "y" not in self.spectra.columns:
+                self.add_radiation_cols(smooth_window=30)
+                self.get_spectral_frames()
+            else:
+                pass
+        except:
+            raise Exception("radiation colums missing")
+        #print(f"length of T_0 array is {len(self.frames.keys())}")
+        self.T_0: list[float] = np.zeros(shape = len(self.frames.keys()))
+        #print(self.T_0)
+        for k in self.frames.keys(): 
+            print(f"length of {k}_th frame is {len(self.frames[k].index)}\n")
+            print(f"columns: {self.frames[k].columns}")
+            self.frames[k]["y_smooth"] = self.frames[k]["y"].rolling(window=smooth_window).mean()     # get the smooth_y for the given frame data
+            if use_smoothed_y:
+                self.frames[k]["del_y"] = self.frames[k]["y_smooth"].diff()
+            else:
+                self.frames[k]["del_y"] = self.frames[k]["y"].diff()
+            self.frames[k]["del_x"] = self.frames[k]["x"].diff()    # should be in nm (close to 1 nm)
+            mean_x_diff = self.frames[k]["del_x"].mean()
+            mean_y_diff = self.frames[k]["del_y"].mean()
+            self.frames[k]["del_x"].fillna(mean_x_diff)
+            self.frames[k]["del_y"].fillna(mean_y_diff)
+            self.frames[k]["T_0s"] = - (self.frames[k]["del_y"]/ self.frames[k]["del_x"])**-1
+        self.T_0 = self._lookup_T0(self.x_0, self.frames)    # index from k-1 since frames start from 1 in csv data
+
+    def _lookup_T0(self, x_0: float, df_dict: dict[int, pd.DataFrame]):
+        "based on x_0 and dataframe with T_0s, lookup the nearest location where you can find the T_0, assumes df has colum x and T_0s"
+        T_0 = []
+        if not x_0:
+            x_0 = self.C2/520.0    # using 520 nm
+        for k in df_dict.keys():
+            result_index = df_dict[k]["x"].sub(x_0).abs().idxmin() - (k-1)*1340    # this is a workaround patch as index was getting increased during lookup
+            print(f"index of {k}th frame inside get_T0 is {len(df_dict[k].index)}")
+            print(f"index for T_0 in frame {k} is {result_index}\n")
+            T_0.append(df_dict[k]["T_0s"].iloc[result_index])
+        return T_0
+    
+    def plot_T0s(self, which_frame:int = 1):
+        fig = plt.figure(figsize = (8, 8))
+        #plt.plot(self.spectra["Wavelength"], self.spectra["Intensity"])
+        sns.lineplot(data=self.frames[which_frame], x="x", y="T_0s")
         plt.show()
 
 class Files():
@@ -89,9 +145,14 @@ def test_data_obj():
     mydata = Pyrodata(experiment=1)
     mydata.read_spectral_data()
     mydata.add_radiation_cols()
-    mydata.calc_T()
-    #mydata.spectra["grad"].head(5)
-    mydata.plot_spectra(["x", "T_0"])
+    mydata.get_spectral_frames()
+    mydata.calc_framewise_rad_vars(use_smoothed_y=True)
+    #mydata.plot_spectra(["x", "y_smooth"])
+    #mydata.plot_spectra(["x", "T_0s"])
+    mydata.plot_spectra(["x", "y"])
+    print(mydata.x_0, mydata.T_0)
+    #print(mydata.spectra["del_x"])
+    mydata.plot_T0s(which_frame=3)
 
 def test_files():
     "basic test for first time code test"
