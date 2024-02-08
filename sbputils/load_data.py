@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import cv2
 import pandas as pd
 import seaborn as sns
+from PIL import Image
 
 class Pyrodata():
     def __init__(self, 
@@ -153,6 +154,7 @@ def test_data_obj():
     print(mydata.x_0, mydata.T_0)
     #print(mydata.spectra["del_x"])
     mydata.plot_T0s(which_frame=3)
+    return mydata.T_0
 
 def test_files():
     "basic test for first time code test"
@@ -176,15 +178,7 @@ def test_csv():
     print(spectral_data.head())
     return spectral_data
 
-def test_video():
-    "basic test for video"
-    EXP_No = 1
-    #getting the class instance
-    exp = Files(EXP_No)
-    exp_files = exp.files()
-    print(f"{exp_files}")
-    #reading the video data
-    video_path = exp_files[0]
+def play_video(video_path):
     cap = cv2.VideoCapture(video_path)
     while(cap.isOpened()):
         ret, frame = cap.read()
@@ -196,6 +190,55 @@ def test_video():
             break
     cap.release()
     cv2.destroyAllWindows()
+
+def analyse_video(video_path):
+    "check aspects of hwo video data structure is handled"
+    frame_list = []
+    i=0
+    cap = cv2.VideoCapture(video_path)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f"fps = {fps}")
+    while(cap.isOpened()):
+        ret, frame = cap.read()
+        #print(frame, ret)
+        if ret and i<10:
+            frame_list.append(frame)
+            i= i+1
+        else:
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+    frame_array = np.array(frame_list)
+    print(f"no. of frames = {i}")
+    print(f"array shape: {frame_array.shape}")
+    return frame_array
+
+def test_video():
+    "basic test for video"
+    EXP_No = 1
+    #getting the class instance
+    exp = Files(EXP_No)
+    exp_files = exp.files()
+    print(f"{exp_files}")
+    #reading the video data
+    video_path = exp_files[0]
+    #play_video(video_path=video_path)
+    b_i = analyse_video(video_path=video_path)
+    #mp4_brightness_accum = np.sum(mp4_brightness, axis = 0)
+    b_0 = get_b0(b_i)
+    return b_i, b_0
+
+def get_b0(b_i: np.ndarray) -> np.ndarray:
+    "calculating b_0 from the b_i s of the accumuated, b_i is 4 D array"
+    a = np.sum(np.multiply(np.log(b_i), b_i), axis=0)
+    print(f"a shape: {a.shape}\n")
+    b = np.sum(b_i, axis=0)
+    print(f"b shape: {b.shape}\n")
+    c = np.divide(a, b)
+    print(f"c shape: {c.shape}\n")
+    d = np.exp(c)
+    print(f"d shape: {d.shape}\n")
+    return d
 
 if __name__== "__main__":
     "getting all data files and registering it in objects to open camera data and spectra"
@@ -209,7 +252,22 @@ if __name__== "__main__":
     #print(f"csv file: {csvFile}")
     #print(pd.read_csv(csvFile).head())
     #dataframe = pd.read_csv(exp_files[1])
-    spectra_frames = test_csv()
+    # Use this section to test spectra part
+    """spectra_frames = test_csv()
     spectra_frames.head(1)
-    #test_video()
-    test_data_obj()
+    test_data_obj()"""
+    b_i, b_0 = test_video()
+    #mp4_array_accum = np.sum(mp4_array, axis=2)
+    print(f"accumulated array shape: {b_0.shape}")
+    factor = 520./1440000.    #lambda_filter/c2
+    inv_T = np.multiply(factor, np.log(np.divide(b_0, b_i[8,:,:,:])))
+    print(inv_T)
+    T_0s = test_data_obj()
+    T_0 = T_0s[0]    # taking the first value here
+    print(f"T_0: {T_0s}")
+    T = np.reciprocal(np.add(1/T_0, inv_T))
+    print(f"Elementwise temperature:\n {T}")
+    plt.imshow(np.reciprocal(inv_T), cmap="magma_r")
+    plt.show()
+    plt.imshow(np.divide(T, 2500.), cmap="magma_r")
+    plt.show()
