@@ -10,6 +10,8 @@ import rasterio
 from rasterio.plot import show
 import tifffile
 
+
+
 """user to create image sequences from industry-standard file formats, 
     including AVI (Windows video), MOV (Apple QuickTime video), 
     TIFF ( 8-bit or 26-bit file formats), JPEG, BMP (Bitmap), PNG (Portable Network Graphics), 
@@ -39,8 +41,13 @@ print(f"data file path is : {get_data_path()}")
 read_directory(get_data_path())
 
 def raw():
+    """
+    .RAW (byte) : 8bit unsigned
+    .RAWW (word) : 16bit unsigned
+    *.RAF (float) : 32bit real
+    """
     "reading raw file - a sample file of .raw format using rawpy"
-    raww_files = find_files(data_dir=get_data_path(), file_extension=".raw")
+    raww_files = find_files(data_dir=get_data_path(), file_extension=".raww")
     for file in raww_files:
         with open(file, 'rb') as f:
             #data = f.read()
@@ -95,9 +102,9 @@ def mp4_to_jpeg(filepath):
     cv2.destroyAllWindows()
 
 
-#data = raw()
-#print(data.shape)
-print(f"reading multiple files and saving in list")
+data = raw()
+print(data.shape)
+#print(f"reading multiple files and saving in list")
 #read_many_images()
-sample_mp4 = mp4()
-mp4_to_jpeg(sample_mp4)
+#sample_mp4 = mp4()
+#mp4_to_jpeg(sample_mp4)

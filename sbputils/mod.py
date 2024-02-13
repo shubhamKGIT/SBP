@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 a = np.arange(1, 4)
 b = np.arange(500, 800, 100)
@@ -13,3 +14,4 @@ print(e)
 
 f = np.exp(e/1000.)
 print(f)
+print(os.listdir())
