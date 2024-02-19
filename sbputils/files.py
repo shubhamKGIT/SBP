@@ -28,7 +28,7 @@ class Files():
         "generate the filepaths"
         try:
             if basepath is not None:
-                self.basedir = basepath.resolve()
+                self.basedir = basepath
             else:
                 src_filepath = pathlib.Path(__file__).resolve()
                 self.basedir = src_filepath.parent.parent   # goes from file -> sbputils -> SBP
@@ -68,6 +68,41 @@ class Files():
         except:
             raise Exception("the filepath was not given or not established properly in object, call files method to check video filename")
 
+def play_video(video_path: str):
+    "plays to test a video, takes absolute filepath of video as string (can play mp4) or can take Files object video path"
+    cap = cv2.VideoCapture(video_path)
+    while(cap.isOpened()):
+        ret, frame = cap.read()
+        print(frame, ret)
+        if ret:
+            cv2.imshow("frame", frame)
+            cv2.waitKey(1)
+        else:
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+
+def get_filename_with_ext(filelist: FileList, ext: str) -> str:
+    "gets first file which matches extension or file with certain filename and extension"
+    for f in filelist:
+        if os.path.splitext(f)[-1].lower() == ext:
+            return f 
+def get_file_from_filelist(filelist: FileList, file: str) -> str:
+    "returns path of file with specific filename"
+    for f in filelist:
+        if os.path.split(f)[-1] == file:
+            return f
+        
+def test_files_obj():
+    "test files class and its methods"
+    EXP_No = 1
+    #getting the class instance
+    exp = Files(EXP_No)
+    exp_files = exp.files()    # called without basepath and filenames
+    print(f"{exp_files}")
+    #also returning filenames
+    return exp_files
+
 def test_csv_read():
     "basic test for testing csv read"
     EXP_No = 0    # should load video_file.mp4 and spectra.csv from folder 000
@@ -94,37 +129,9 @@ def test_video_read():
     video_file = get_filename_with_ext(exp_files, ".mp4")
     exp.check_video(video_file)
 
-def play_video(video_path: str):
-    "plays to test a video, takes absolute filepath of video as string (can play mp4) or can take Files object video path"
-    cap = cv2.VideoCapture(video_path)
-    while(cap.isOpened()):
-        ret, frame = cap.read()
-        print(frame, ret)
-        if ret:
-            cv2.imshow("frame", frame)
-            cv2.waitKey(1)
-        else:
-            break
-    cap.release()
-    cv2.destroyAllWindows()
-
-
-def get_filename_with_ext(filelist: FileList, ext: str ) -> str:
-    for f in filelist:
-        if os.path.splitext(f)[-1].lower() == ext:
-            return f
-        
-def test_files_obj():
-    "test files class and its methods"
-    EXP_No = 1
-    #getting the class instance
-    exp = Files(EXP_No)
-    exp_files = exp.files()    # called without basepath and filenames
-    print(f"{exp_files}")
-    #also returning filenames
-    return exp_files
-
 if __name__=="__main__":
     #test_files_obj()
     test_csv_read()
     test_video_read()
+    #play_video(Files(0).files()[0])
+    
