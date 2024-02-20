@@ -13,13 +13,14 @@ import seaborn as sns
 from PIL import Image
 from mraw import load_video
 from typing import Type, TypeVar, Union, Optional
+import json
 
 Folder = Optional[pathlib.Path]
 FileList = Optional[list[str]]
 DataFrame = Optional[pd.DataFrame]
 Data = Optional[Union[np.array, np.ndarray]]
 
-from files import Files
+from files import Files, get_filename_with_ext
 
 class Pyrodata():
     "object for an experiment with both video and spectral data, video as mp4/mraw and spectra as csv"
@@ -32,7 +33,7 @@ class Pyrodata():
             print(f"Data object being initialied for experiment no.: {exp_number}")
         else:
             raise Exception(f"Please provide experiment number of data as integer to intialise data object.\n")
-    
+        self._exp = exp_number
         try:
             if filenames is None:
                 # filename is not given, use defaults
@@ -47,13 +48,27 @@ class Pyrodata():
             raise Exception(f"Data not initialised.")
         finally:
             print(f"Check file paths used to initialise data object:\n {self.filepaths}")
+        info_file = get_filename_with_ext(self.filepaths, ".json")
+        self._info = read_json(info_file)
+    
+    @property
+    def experiment_number(self):
+        return self._exp
+
+    @property
+    def info(self):
+        return self._info
     
     def read_spectral_data(self, columns: Optional[list[str]] = None):
         if columns is None:
             cols = ["Frame","Row","Column","Wavelength","Intensity"]
         else:
             cols = columns
-        spectra = self.file_holder.read_csv(self.filepaths[1], delimiter=",", cols=cols)
+        spectra = self.file_holder.read_csv(
+                                            get_filename_with_ext(self.filepaths, ".csv"), 
+                                            delimiter=",", 
+                                            cols=cols
+                                            )
         return spectra
     
     def plot_spectra(self, args=["Wavelength", "Intensity"]):
@@ -65,6 +80,12 @@ class Pyrodata():
     def read_video_data(self):
         analyse_video(self.filepaths[0])
 
+def read_json(json_file: str):
+    "return data from json file"
+    with open(json_file) as f:
+        data = json.load(f)
+        f.close()
+    return data
 
 def test_pyrodata_obj():
     "to test the Pyrodata class and its methods"
@@ -82,6 +103,7 @@ def analyse_video(video_path: str, num_frame: Optional[int] = 10) -> np.ndarray:
         num_frame = num_frame
     frame_list = []
     i=0
+    print(f"opening video file: {video_path}")
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     print(f"fps = {fps}")
