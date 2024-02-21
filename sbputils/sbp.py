@@ -2,6 +2,7 @@
 from pyrodata import Pyrodata, Folder, FileList, analyse_video
 from files import Files, get_filename_with_ext, get_file_from_filelist
 from video import show_image, frame_sync_vid_seq
+from mraw import load_video
 from typing import Type, TypeVar, Optional, Union
 import numpy as np
 import pandas as pd
@@ -120,7 +121,7 @@ class SBP():
         "handles various type of video data files and return the brightness, also a way to test if files read"
         datafiles = self.data_holder.file_holder.files()
         print(f"filelist used for calling video processing (mp4 selected with extension) {datafiles}")
-        self.bi, self.b0 = process_video(Exp_Num=None, 
+        self.bi, self.b0, _ = process_video(Exp_Num=None, 
                                          filename=datafiles, 
                                          vid_file="video_file", 
                                          ext=".mp4",
@@ -134,11 +135,12 @@ class SBP():
         "get video data holder and call the build_frame_temperature passing T_0, b_i dataset and the b_0"
         try:
             T_0 = self.T_0[spectral_frame_num -1]
+            print(f"T_0 used for spectral frame {spectral_frame_num} is :{T_0} K")
         except: 
             raise Exception(f"Could not pick reference temeperature for the spectral frames")
 
-        if test:
-            b_i, b_0 = process_video(Exp_Num=None, 
+        if test is True:
+            b_i, b_0, _ = process_video(Exp_Num=None, 
                                     filename=self.data_holder.file_holder.files(), 
                                     vid_file="video_file",
                                     ext=".mp4",
@@ -146,12 +148,13 @@ class SBP():
                                     num_frames= 20)
         else:
             start_at_vid_frame, num_of_frames = frame_sync_vid_seq(info= self.data_holder.info, spectral_frame_num= spectral_frame_num)
-            b_i, b_0 = process_video(Exp_Num=None, 
+            b_i, b_0, cih_info = process_video(Exp_Num=None, 
                                     filename=self.data_holder.file_holder.files(), 
-                                    vid_file="video_file",
+                                    vid_file=None,
                                     ext=".mraw",
                                     start_frame= start_at_vid_frame,
                                     num_frames= num_of_frames)
+            print(f"calc T_i called...")
         T_i = self.calc_Ti(bi_seq=b_i, b0=b_0, T0=T_0)
         return T_i
 
@@ -161,6 +164,7 @@ class SBP():
         temp2 = - (1/self.x_0)*np.log(np.divide(bi_seq, b0))
         temp = np.add(temp1, temp2)
         T_i = np.reciprocal(temp)
+        print(f"T_i retuned.")
         return T_i
 
 def read_video(video_path: str, start_frame: Optional[int], num_frame: Optional[int] = 10) -> np.ndarray:
@@ -225,22 +229,25 @@ def process_video(Exp_Num: Optional[int],
         exp_files = list(filename)    # only one file passed
     else:
         exp_files = filename
-    print(f"expriment files considered for processing video: {exp_files}")
-    #reading the video data
-    my_video_file: str = vid_file + ext   # example video_file.mp4
-    #video_path = get_filename_with_ext(exp_files, ext)   # getting data from first .mp4 file found
-    video_path = get_file_from_filelist(exp_files, my_video_file)
-    print(f"file received with file selector {video_path}")
-    #play_video(video_path=video_path)
+    #print(f"expriment files considered for processing video: {exp_files}")
     if ext == ".mp4":
+        #reading the video data
+        my_video_file: str = vid_file + ext   # example video_file.mp4
+        #video_path = get_filename_with_ext(exp_files, ext)   # getting data from first .mp4 file found
+        video_path = get_file_from_filelist(exp_files, my_video_file)
+        print(f"file received with file selector {video_path}")
+        #play_video(video_path=video_path)
         b_i = read_video(video_path=video_path, start_frame=start_frame, num_frame= num_frames)    # getting frames in an array, keep small number
+        info = None
     elif ext ==".mraw":
-        #TODO
-        pass
+        cihx_file = get_filename_with_ext(filelist= filename, ext=".cihx")
+        print(f'Reading data from video file: {os.path.splitext(cihx_file)[0] + ".mraw"}')
+        b_i, info = load_video(cih_file= cihx_file)
+        print(f"b_i received from .mraw file, matrix shape: {b_i.shape}")
     else:
         raise Exception("reading video format of this extension not implemented")
-    b_0 = get_b0(b_i)
-    return b_i, b_0
+    b_0 = get_b0(b_i[:20])
+    return b_i[:20], b_0, info
 
 def get_b0(b_i: np.ndarray) -> np.ndarray:
     "calculating b_0 from the b_i s of the accumuated, b_i is 4 D array"
@@ -253,6 +260,7 @@ def get_b0(b_i: np.ndarray) -> np.ndarray:
     print(f"c shape: {c.shape}\n")
     d = np.exp(c)
     print(f"d shape: {d.shape}\n")
+    print(f"b_0 returned !")
     return d
 
 def test_sbp_obj(mydata: Optional[Pyrodata]):
@@ -284,9 +292,9 @@ if __name__=="__main__":
     sbp1.plot_framewise_spectra(["x", "y_smooth"])
     sbp1.plot_T0s()
     print(f"framewise T0s: {sbp1.T_0}")
-    sbp1.video_brightness_data(None)
+    #sbp1.video_brightness_data(None)
     #sbp1.plot_brightness(sbp1.b0)
-    print(f"brightness processed data sizes for b_i, b_0: {sbp1.bi.shape, sbp1.b0.shape}")
-    print(f'pyrodata experiment info: {myData.info["video_channel"]}')
-    T_i = sbp1.vid_seq_temperature(spectral_frame_num= 1, test= True)
-    sbp1.plot_brightness(T_i[3])
+    #print(f"brightness processed data sizes for b_i, b_0: {sbp1.bi.shape, sbp1.b0.shape}")
+    #print(f'pyrodata experiment info: {myData.info["video_channel"]}')
+    T_i = sbp1.vid_seq_temperature(spectral_frame_num= 3, test= False)
+    sbp1.plot_brightness(T_i[19])
