@@ -61,7 +61,7 @@ class SBP():
         "calculate the y_diff, x_diff, T_Os and exact T_0 for X_0 for all spectral frames"
         try:
             if "y" not in self.spectra.columns:
-                self.add_radiation_cols(smooth_window=30)
+                self.add_radiation_cols(smooth_window=smooth_window)
                 self.get_spectral_frames()
             else:
                 pass
@@ -77,11 +77,11 @@ class SBP():
             self.frames[k]["y_smooth"] = self.frames[k]["y"].rolling(window=smooth_window).mean()     # get the smooth_y for the given frame data
             self.frames[k]["y_smooth"].fillna(0)
             # Getting delta x and delta y
-            if use_smoothed_y:
-                self.frames[k]["del_y"] = self.frames[k]["y_smooth"].diff()
+            if use_smoothed_y is True:
+                self.frames[k]["del_y"] = self.frames[k]["y_smooth"].diff(-400)
             else:
-                self.frames[k]["del_y"] = self.frames[k]["y"].diff()
-            self.frames[k]["del_x"] = self.frames[k]["x"].diff()    # should be in nm (close to 1 nm)
+                self.frames[k]["del_y"] = self.frames[k]["y"].diff().diff(-400)
+            self.frames[k]["del_x"] = self.frames[k]["x"].diff(-400)    # should be in nm (close to 40 nm)
             # Filling NA values
             mean_x_diff = self.frames[k]["del_x"].mean()
             mean_y_diff = self.frames[k]["del_y"].mean()
@@ -89,6 +89,7 @@ class SBP():
             self.frames[k]["del_y"].fillna(mean_y_diff)
             # Getting T0s with del_y and del_x for each frame
             self.frames[k]["T_0s"] = - (self.frames[k]["del_y"]/ self.frames[k]["del_x"])**-1
+            self.frames[k]["T_0s_avg"] = self.frames[k]["T_0s"].rolling(window=10).mean()
         #For all frames, check where TO lies
         self.T_0 = self._lookup_T0(self.x_0, self.frames)    # index from k-1 since frames start from 1 in csv data
 
@@ -101,20 +102,26 @@ class SBP():
             result_index = df_dict[k]["x"].sub(x_0).abs().idxmin() - (k-1)*1340    # this is a workaround patch as index was getting increased during lookup
             print(f"index of {k}th frame inside get_T0 is {len(df_dict[k].index)}")
             print(f"index for T_0 in frame {k} is {result_index}\n")
-            T_0s.append(df_dict[k]["T_0s"].iloc[result_index])
+            #T_0s.append(df_dict[k]["T_0s"].iloc[result_index])
+            T_0s.append(df_dict[k]["T_0s_avg"].iloc[result_index])    # selecting from smoothed columns
         return T_0s
     
-    def plot_T0s(self, which_frame:int = 1):
+    def plot_T0s(self, which_frame:int = 1, T_lim: float = 1e5):
         fig = plt.figure(figsize = (8, 8))
         #plt.plot(self.spectra["Wavelength"], self.spectra["Intensity"])
         sns.lineplot(data=self.frames[which_frame], x="x", y="T_0s")
+        plt.ylim(0, T_lim)
         plt.show()
     
-    def plot_framewise_spectra(self, args = ["x", "y_smooth"]):
+    def plot_framewise_spectra(self, args = ["x", "y_smooth"], ylimit: Optional[float] = None):
         fig = plt.figure(figsize = (8, 8))
         #plt.plot(self.spectra["Wavelength"], self.spectra["Intensity"])                           
         for k in self.frames.keys():
             sns.lineplot(data=self.frames[k], x=args[0], y=args[1])
+        if ylimit is not None:
+            plt.ylim(0, ylimit)
+        else:
+            pass
         plt.show()
     
     def video_brightness_data(self, type: Optional[str]):
@@ -148,26 +155,41 @@ class SBP():
                                     num_frames= 20)
         else:
             start_at_vid_frame, num_of_frames = frame_sync_vid_seq(info= self.data_holder.info, spectral_frame_num= spectral_frame_num)
-            b_i, b_0, cih_info = process_video(Exp_Num=None, 
+            num_of_frames = 50 # to keep is manageable # TODO: change this later
+            b_i, b_0, b_0_over_t, cih_info = process_video(Exp_Num=None, 
                                     filename=self.data_holder.file_holder.files(), 
                                     vid_file=None,
                                     ext=".mraw",
                                     start_frame= start_at_vid_frame,
                                     num_frames= num_of_frames)
             print(f"calc T_i called...")
-        T_i = self.calc_Ti(bi_seq=b_i, b0=b_0, T0=T_0)
-        return T_i
+        T_i = np.zeros(b_i.shape)
+        # temporal integration decoupled here
+        T_j_framewise = np.zeros(b_0.shape)
+        T_j_framewise = self.calc_Ti(bi_frame=b_0, b0=b_0_over_t, T0=T_0)
+        # spatial integration decoupled here
+        for k in range(b_i.shape[0]):
+            "camera framewise temperature"
+            T_i[k] = self.calc_Ti(bi_frame=b_i[k], b0=b_0[k], T0=T_j_framewise[k])
+        return T_i, T_j_framewise, b_i, b_0, b_0_over_t, cih_info
 
-    def calc_Ti(self, bi_seq: np.ndarray, b0: np.ndarray, T0: float):
+    def calc_Ti(self, bi_frame: np.ndarray, b0: float, T0: float):
         "calculates T_i from T_0, b_i and b_0"
-        temp1 = 1/T0
-        temp2 = - (1/self.x_0)*np.log(np.divide(bi_seq, b0))
-        temp = np.add(temp1, temp2)
-        T_i = np.reciprocal(temp)
+        b_0 = np.zeros(shape= bi_frame.shape, dtype = float)
+        b_0[:] = b0   # populate with same b0s
+        temp1 = np.zeros(shape= bi_frame.shape, dtype = float)
+        temp1[:] = 1/T0
+        temp2 = (1/self.x_0)*np.log(b_0)
+        bi_frame_log =  np.log(bi_frame)
+        bi_frame_log = np.nan_to_num(bi_frame_log, copy=False, nan=-9999, neginf=-33333333)
+        temp3 = - (1/self.x_0)*bi_frame_log
+        temp12 = np.add(temp1, temp2)
+        temp_inv = np.add(temp12, temp3)
+        T_i = np.reciprocal(temp_inv)
         print(f"T_i retuned.")
         return T_i
 
-def read_video(video_path: str, start_frame: Optional[int], num_frame: Optional[int] = 10) -> np.ndarray:
+def read_video(video_path: str, start_frame: Optional[int], num_frame: Optional[int] = 100) -> np.ndarray:
     "read video file, return some number of frame data (prefer small number) as numpy array"
     if num_frame is None:
         num_frame = 10   # keeping it small
@@ -217,7 +239,7 @@ def process_video(Exp_Num: Optional[int],
         num_frame: no. of video frames to read
         output:
         b_i: np.ndarray data from the video for number of frames(N) as (N, h, w, c) data format
-        b_0: average of the N frames based on SBP formaula as (h, w, c) format
+        b_0: apatial average of the single frames based on SBP formaula as np.array[num_frames] format
     """
     if filename is None:
         # filenames have to be generated here
@@ -246,20 +268,34 @@ def process_video(Exp_Num: Optional[int],
         print(f"b_i received from .mraw file, matrix shape: {b_i.shape}")
     else:
         raise Exception("reading video format of this extension not implemented")
-    b_0 = get_b0(b_i[:20])
-    return b_i[:20], b_0, info
+    b_i_s = np.nan_to_num(b_i[:num_frames], copy=True, nan=1)  # reducing size
+    b_0s = np.zeros(num_frames)
+    print(f"trimmed b_i shape: {b_i_s.shape}")
+    print(f"b_0s shape: {b_0s.shape}")
+    for snap in range(num_frames):
+        print(f"For snapshot: {snap+1}")
+        b_0s[snap] = get_b0(b_i_s[snap])   # passing a single frame here, updated code
+    b_0_over_t = get_b0(b_0s)
+    return b_i_s, b_0s, b_0_over_t, info
 
-def get_b0(b_i: np.ndarray) -> np.ndarray:
-    "calculating b_0 from the b_i s of the accumuated, b_i is 4 D array"
+def get_b0(b_i: np.ndarray):
+    "calculating b_0 from the b_i (i = surface element) of the camera frame, b_i is 2D (h, w) or 3D (h, w, c) array"
     print(f"Intermediate matrices for b_0 calculation:")
-    a = np.sum(np.multiply(np.log(b_i), b_i), axis=0)
-    print(f"a shape: {a.shape}\n")
-    b = np.sum(b_i, axis=0)
-    print(f"b shape: {b.shape}\n")
-    c = np.divide(a, b)
-    print(f"c shape: {c.shape}\n")
+    #a = np.sum(np.multiply(np.log(b_i), b_i), axis=0)
+    bi_log = np.log(b_i)   # log of brightness
+    print()
+    bi_log = np.nan_to_num(bi_log, copy=False, nan=-9999, neginf=-33333333)   # getting rig of NA and -inf
+    bi_log = np.ceil(bi_log)
+    a = np.sum(np.multiply(bi_log, b_i))   # sigma(bi*log(bi))
+    print(f"a: {a}\n")
+    #b = np.sum(b_i, axis=0)
+    b = np.sum(b_i)
+    print(f"b: {b}\n")
+    #c = np.divide(a, b)
+    c = a/b
+    print(f"c: {c}\n")
     d = np.exp(c)
-    print(f"d shape: {d.shape}\n")
+    print(f"d: {d}\n")
     print(f"b_0 returned !")
     return d
 
@@ -286,15 +322,25 @@ if __name__=="__main__":
     sbp1 = SBP(myData)
     sbp1.add_radiation_cols()
     #print(sbp1.spectra)
-    #sbp1.plot_raw_spectra(["x", "y"])
+    sbp1.plot_raw_spectra(["Wavelength", "Intensity"])
+    sbp1.plot_raw_spectra(["x", "y"])
     sbp1.get_spectral_frames()
     sbp1.calc_framewise_rad_vars(use_smoothed_y=True, smooth_window=10)
     sbp1.plot_framewise_spectra(["x", "y_smooth"])
-    sbp1.plot_T0s()
+    sbp1.plot_T0s(3, 10000)
     print(f"framewise T0s: {sbp1.T_0}")
     #sbp1.video_brightness_data(None)
     #sbp1.plot_brightness(sbp1.b0)
     #print(f"brightness processed data sizes for b_i, b_0: {sbp1.bi.shape, sbp1.b0.shape}")
     #print(f'pyrodata experiment info: {myData.info["video_channel"]}')
-    T_i = sbp1.vid_seq_temperature(spectral_frame_num= 3, test= False)
-    sbp1.plot_brightness(T_i[19])
+    T_i, T_j, b_i, b_0, b_0_over_t, info = sbp1.vid_seq_temperature(spectral_frame_num= 3, test= False)
+    show_image(b_i[10])
+    print(f"max in b_i[10]: {np.max(b_i[10])}")
+    #sbp1.plot_brightness(T_i[10])
+    Ti_bias = np.zeros(T_i.shape)
+    Ti_bias[:] = 1500.
+    T_i_corrected = np.subtract(T_i, Ti_bias)
+    show_image(image_data=T_i[10], cmap='plasma')
+    print(f"Overall brightness over time t: {b_0_over_t}")
+    print(f"Individual frame b_0: {b_0}")
+    print(f"Framewise reference temperaure: {T_j}")
