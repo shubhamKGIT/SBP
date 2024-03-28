@@ -94,7 +94,6 @@ def test_pyrodata_obj():
     mydata.plot_spectra()
     mydata.read_video_data()
 
-
 def analyse_video(video_path: str, num_frame: Optional[int] = 10) -> np.ndarray:
     "read video file, return some number of frame data (prefer small number) as numpy array"
     if num_frame is None:

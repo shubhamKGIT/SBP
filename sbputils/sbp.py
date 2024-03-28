@@ -1,12 +1,13 @@
 
 from pyrodata import Pyrodata, Folder, FileList, analyse_video
 from files import Files, get_filename_with_ext, get_file_from_filelist
-from video import show_image, frame_sync_vid_seq
+from video import show_image, frame_sync_vid_seq, show_masked_image
 from mraw import load_video
 from typing import Type, TypeVar, Optional, Union
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 import seaborn as sns
 import os
 import pathlib
@@ -334,13 +335,13 @@ if __name__=="__main__":
     #print(f"brightness processed data sizes for b_i, b_0: {sbp1.bi.shape, sbp1.b0.shape}")
     #print(f'pyrodata experiment info: {myData.info["video_channel"]}')
     T_i, T_j, b_i, b_0, b_0_over_t, info = sbp1.vid_seq_temperature(spectral_frame_num= 3, test= False)
-    show_image(b_i[10])
+    show_image(image_data=b_i[10])
     print(f"max in b_i[10]: {np.max(b_i[10])}")
     #sbp1.plot_brightness(T_i[10])
     Ti_bias = np.zeros(T_i.shape)
     Ti_bias[:] = 1500.
     T_i_corrected = np.subtract(T_i, Ti_bias)
-    show_image(image_data=T_i[10], cmap='plasma')
+    show_masked_image(image_data=T_i[10], cmap='plasma', vmin_max=(2500, 3000))
     print(f"Overall brightness over time t: {b_0_over_t}")
     print(f"Individual frame b_0: {b_0}")
     print(f"Framewise reference temperaure: {T_j}")

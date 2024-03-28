@@ -3,8 +3,6 @@
 Parts of the code for reading the mraw files was developed by:
 J. Javh, J. Slavič and M. Boltežar: The Subpixel Resolution of Optical-Flow-Based Modal Analysis,
 Mechanical Systems and Signal Processing, Vol. 88, p. 89–99, 2017
-
-The above would also be duly referred to in the publications on SBP. 
 """
 
 import os
