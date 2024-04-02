@@ -1,31 +1,29 @@
 import numpy as np
 import cv2
 
-cap = cv2.VideoCapture(0)
+def run_webcam():
+    cap = cv2.VideoCapture(0)
+    # Define the codec and create VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+    #out = cv2.VideoWriter('output.avi',fourcc, 20.0, (640,480))
+    out = cv2.VideoWriter('output.avi', fourcc, 20.0, (640,480))
+    while(cap.isOpened()):
+        ret, frame = cap.read()
+        if ret==True:
+            frame = cv2.flip(frame,0)
+            print(np.max(frame))
+            print(frame.shape)
+            print(type(frame))
 
-# Define the codec and create VideoWriter object
-fourcc = cv2.VideoWriter_fourcc(*'DIVX')
-#out = cv2.VideoWriter('output.avi',fourcc, 20.0, (640,480))
-out = cv2.VideoWriter('output.avi', fourcc, 20.0, (640,480))
+            # write the flipped frame
+            out.write(frame)
 
-while(cap.isOpened()):
-    ret, frame = cap.read()
-    if ret==True:
-        frame = cv2.flip(frame,0)
-        print(np.max(frame))
-        print(frame.shape)
-        print(type(frame))
-
-        # write the flipped frame
-        out.write(frame)
-
-        cv2.imshow('frame',frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+            cv2.imshow('frame',frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        else:
             break
-    else:
-        break
-
-# Release everything if job is finished
-cap.release()
-out.release()
-cv2.destroyAllWindows()
+    # Release everything if job is finished
+    cap.release()
+    out.release()
+    cv2.destroyAllWindows()

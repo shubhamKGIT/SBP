@@ -1,7 +1,8 @@
 
 from pyrodata import Pyrodata, Folder, FileList, analyse_video
 from files import Files, get_filename_with_ext, get_file_from_filelist
-from video import show_image, frame_sync_vid_seq, show_masked_image
+from videoUtils import show_image, show_masked_image, get_mpl_cmap_custom_palette, get_mpl_colormap, apply_color, write_frames_to_pkl_dump
+from gray2color import gray_2_color
 from mraw import load_video
 from typing import Type, TypeVar, Optional, Union
 import numpy as np
@@ -313,6 +314,36 @@ def test_sbp_obj(mydata: Optional[Pyrodata]):
     mysbp.plot_T0s(which_frame=3)
     return mysbp.T_0
 
+def frame_sync_vid_seq(info: dict, 
+                       spectral_frame_num: int
+                       ):
+        "use information about spectral and video data (in json file) to plan where they overlap"
+        video_channel = info["video_channel"]
+        spectral_channel = info["spectral_channel"]
+        if spectral_frame_num in [i+1 for i in range(spectral_channel["num_of_frames"])]:
+            pass
+        else:
+            raise Exception("spectral frame number passed needs to be checked")
+        fps = video_channel["hs_vid_fps"]
+        vid_frames_per_ms = video_channel["hs_vid_fps"]/1000.
+        vid_frames_per_spectra = spectral_channel["gap_between_spectral_frames"]*vid_frames_per_ms
+        integration_time = spectral_channel["integration_time"]
+        no_of_vid_frames = integration_time*vid_frames_per_ms
+        vid_saved_from_frame = video_channel["video_saved_from_frame"]
+        rel_vid_acquisition_frame = (spectral_channel["rel_aquisition_starts_at"]/1000.)*fps
+        integration_starts_at_vid_frame = rel_vid_acquisition_frame + (spectral_frame_num - 1)*vid_frames_per_spectra - vid_saved_from_frame
+        if integration_starts_at_vid_frame < 0:
+             raise Exception("video data not saved for this spectra")
+        else:
+             pass
+        return integration_starts_at_vid_frame, no_of_vid_frames
+
+def shift_bias(T_i):
+    Ti_bias = np.zeros(T_i.shape)
+    Ti_bias[:] = 1500.
+    T_i_corrected = np.subtract(T_i, Ti_bias)
+    return T_i_corrected
+
 if __name__=="__main__":
     EXP_No: int = 1
     FILES: FileList = ["video_file.mp4", "spectra.csv", "info.json"]
@@ -338,10 +369,13 @@ if __name__=="__main__":
     show_image(image_data=b_i[10])
     print(f"max in b_i[10]: {np.max(b_i[10])}")
     #sbp1.plot_brightness(T_i[10])
-    Ti_bias = np.zeros(T_i.shape)
-    Ti_bias[:] = 1500.
-    T_i_corrected = np.subtract(T_i, Ti_bias)
+    TEMP_DUMP = "temperature.pkl"
+    temp_filepath = os.path.join(sbp1.data_holder.file_holder.expFolder, TEMP_DUMP)
+    print(f"dumping calculated temperatues in {temp_filepath}")
+    write_frames_to_pkl_dump(T_i, temp_filepath)
+    # Files with temperature data written, can close the main here to be read and plotted elsewhere
     show_masked_image(image_data=T_i[10], cmap='plasma', vmin_max=(2500, 3000))
     print(f"Overall brightness over time t: {b_0_over_t}")
     print(f"Individual frame b_0: {b_0}")
     print(f"Framewise reference temperaure: {T_j}")
+    

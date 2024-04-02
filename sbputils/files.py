@@ -39,6 +39,7 @@ class Files():
             self.fileNames = [f for f in self.dataDir.joinpath(self.exp_num).iterdir() if f.is_file()]
         else:
             self.fileNames = files
+        self.expFolder = os.path.join(self.dataDir, self.exp_num)
         self.dataFiles = [os.path.join(self.dataDir, self.exp_num, f) for f in self.fileNames]
         return self.dataFiles
     
