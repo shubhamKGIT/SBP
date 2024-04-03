@@ -37,7 +37,7 @@ def show_masked_image(image_data: Optional[Union[np.array, np.ndarray]] = None,
         pass
     fig, ax = plt.subplots()
     colormap = mpl.colormaps[cmap]
-    palette = colormap.with_extremes(over='r', under='g', bad='k')
+    palette = colormap.with_extremes(over='r', under='k', bad='b')  # blue for masked, black for low and red for high
     array_masked = np.ma.masked_where(image_data < mask_threshhold, image_data)
     print(f"masked array info: {array_masked.min()}, {array_masked.max()}")
     vmin = vmin_max[0]
@@ -144,7 +144,8 @@ def get_mpl_colormap(cmap_name = None, is_custom = False, norm = None, vmin = 0,
         norm = colors.BoundaryNorm(boundaries=bounds, ncolors= palette.N)
     else:
         if isinstance(cmap_name, str):
-            palette = plt.get_cmap(cmap_name)
+            colormap = mpl.colormaps[cmap_name]
+            palette = colormap
             print(f"name of colormap passed, retrieving the color range here: {palette}, type: {type(palette)}")
         """elif isinstance(cmap_name, type(mpl.colors.LinearSegmentedColormap)):
             palette = cmap_name
@@ -152,11 +153,13 @@ def get_mpl_colormap(cmap_name = None, is_custom = False, norm = None, vmin = 0,
             raise TypeError"""
         if norm is None:
             print(f"norm is not provided, calculating it using vmin, vmain; range passed for colormap: {vmin} to {vmax}")
-            norm = plt.Normalize(vmin, vmax)
+            norm = colors.Normalize(vmin, vmax)
+            #bounds = np.linspace(vmin, vmax, 10)
+            #norm = colors.BoundaryNorm(boundaries=bounds, ncolors= palette.N)
     # Initialize the matplotlib color map
-    sm = plt.cm.ScalarMappable(cmap=palette)
+    sm = plt.cm.ScalarMappable(cmap=palette, norm=norm)
     # Obtain linear color range
-    color_range = sm.to_rgba(np.linspace(0, 1, 256), bytes=True)[:,2::-1]
+    color_range = sm.to_rgba(np.linspace(0, 1, 256), bytes=True)[:,2::-1]   # retunr in uint8 range
     return color_range.reshape(256, 1, 3)
 
 def get_mpl_cmap_custom_palette(cmap = None, norm = None):

@@ -1,0 +1,7 @@
+// some yaml file
+data:
+  url: "https//www.google.com"
+  stuff: """
+    - 'task1'
+    - 'task2'
+  """

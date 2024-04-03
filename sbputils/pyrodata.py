@@ -14,6 +14,7 @@ from PIL import Image
 from mraw import load_video
 from typing import Type, TypeVar, Union, Optional
 import json
+import re
 
 Folder = Optional[pathlib.Path]
 FileList = Optional[list[str]]
