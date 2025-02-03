@@ -25,11 +25,13 @@ def find_mraw_file(experiment_number):
             if file.endswith('.mraw'):
                 return os.path.join(root, file)
 
-# Example usage:
-experiment_number = 1  # Replace with the specific experiment number
 
-mraw_file_path = find_mraw_file(experiment_number)
-if mraw_file_path:
-    print("Path of .mraw file:", mraw_file_path)
-else:
-    print("No .mraw file found for the specified experiment number.")
+if __name__=="__main__":
+    # Example usage:
+    experiment_number = 21 # Replace with the specific experiment number
+
+    mraw_file_path = find_mraw_file(experiment_number)
+    if mraw_file_path:
+        print("Path of .mraw file:", mraw_file_path)
+    else:
+        print("No .mraw file found for the specified experiment number.")

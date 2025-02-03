@@ -41,12 +41,12 @@ class VideoFilesBase:
         else:
             raise NotImplementedError("Implemeted only for mraw")
     
-    def read_and_plot(self):
+    def read_and_plot(self, frame = 800):
         frames, cihx_dict = load_video(self.vid_file)
         bit_depth = cihx_dict["Color Bit"]
         max_brightness = 2**bit_depth
         fps = cihx_dict["Record Rate(fps)"]
-        snap = frames[800, :, :]
+        snap = frames[frame, :, :]
         print(f'bit depth: {cihx_dict["Color Bit"]}')
         print(f'frame rate: {cihx_dict["Record Rate(fps)"]}')
         print(f"video data read shape: {frames.shape}")

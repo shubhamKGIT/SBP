@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.ndimage as ndimage
-import skimage
+# import skimage
 from PIL import Image
 import cv2
 from video_processing_utils import show_image
@@ -9,7 +9,7 @@ import os
 import glob
 import pathlib
 import matplotlib as mpl
-import cmapy
+# import cmapy
 from videoUtils import get_mpl_cmap_custom_palette, get_mpl_colormap, apply_color
 
 
