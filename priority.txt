@@ -1,0 +1,11 @@
+# most important items for paper, path of lease resistance, quick turnaround (< 48 hours)
+
+
+1. Improve plots, run same code - 4 hrs
+2. Add plot to paper, revise paper - 2 hrs + 4 hrs 
+3. Process and compare same results wiht two lambda powers - 2 hrs 
+4. Process multiple runs of same paramters. Compare results - 4 hrs
+6. Run on becnhmark, other dataset already validated with secondary measurement - 8 hrs
+
+
+TOTAT TIME NEEDED: 24 hours = 6 hrs * 4 days for minimum paper update

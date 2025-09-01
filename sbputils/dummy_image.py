@@ -21,5 +21,6 @@ def build_dummy_frames(n_frames = 100, n_pixel = 1024):
     plt.show()
     return frames
 
-frames = build_dummy_frames()
-print(f"frames min, max: {frames.min()}, {frames.max()}")
+if __name__=="__main__":
+    frames = build_dummy_frames()
+    print(f"frames min, max: {frames.min()}, {frames.max()}")

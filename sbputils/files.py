@@ -16,6 +16,7 @@ Folder = Optional[pathlib.Path]
 FileList = Optional[list[str]]
 DataFrame = Optional[pd.DataFrame]
 Data = Optional[Union[np.array, np.ndarray]]
+from utils import get_file_from_filelist, get_filename_with_ext
 
 class Files():
     "Object to return the file names to the pyro data object; takes exp_number, pathlib.Path for data folder and filenames as list of string"
@@ -62,14 +63,15 @@ class Files():
     def check_video(self, filepath: Optional[str] = None) -> None:
         try:
             if filepath is not None:
-                play_video(filepath)
+                #play_video(filepath)
+                pass #TODO # implement mraw read function call here
             else:
                 video_file = get_filename_with_ext(self.dataFiles, ".mp4")
-                play_video(video_file)
+                play_mp4(video_file)
         except:
             raise Exception("the filepath was not given or not established properly in object, call files method to check video filename")
 
-def play_video(video_path: str):
+def play_mp4(video_path: str):
     "plays to test a video, takes absolute filepath of video as string (can play mp4) or can take Files object video path"
     cap = cv2.VideoCapture(video_path)
     while(cap.isOpened()):
@@ -82,22 +84,10 @@ def play_video(video_path: str):
             break
     cap.release()
     cv2.destroyAllWindows()
-
-def get_filename_with_ext(filelist: FileList, ext: str) -> str:
-    "gets first file which matches extension or file with certain filename and extension"
-    for f in filelist:
-        if os.path.splitext(f)[-1].lower() == ext:
-            return f 
         
-def get_file_from_filelist(filelist: FileList, file: str) -> str:
-    "returns path of file with specific filename"
-    for f in filelist:
-        if os.path.split(f)[-1] == file:
-            return f
-        
-def test_files_obj():
+def test_files_obj(exp: int = 0):
     "test files class and its methods"
-    EXP_No = 1
+    EXP_No = exp
     #getting the class instance
     exp = Files(EXP_No)
     exp_files = exp.files()    # called without basepath and filenames
@@ -105,35 +95,42 @@ def test_files_obj():
     #also returning filenames
     return exp_files
 
-def test_csv_read():
+def test_csv_read(exp: int = 0, cols: list[str] = ["Frame", "Wavelength", "Intensity"]):
     "basic test for testing csv read"
-    EXP_No = 0    # should load video_file.mp4 and spectra.csv from folder 000
+    EXP_No = exp    # should load video_file.mp4 and spectra.csv from folder 000
     #getting the class instance
-    FILES = ["video.mp4", "spectra.csv"]
+    #FILES = ["video.mp4", "spectra.csv"]
+    FILES = None
     exp = Files(EXP_No)
-    exp_files = exp.files(files= FILES)
+    exp_files = exp.files(FILES)
     print(f"files found: {exp_files} \n")
     csv_file = get_filename_with_ext(exp_files, ".csv")
     #reading the csv data
-    spectral_data = exp.read_csv(filepath=csv_file)
+    spectral_data = exp.read_csv(filepath=csv_file, cols = cols)
     print(f"csv data read using Files.read_csv(), returned as pd.Dataframe, printing below sone lines:\n")
     print(spectral_data.head())
     return spectral_data
 
-def test_video_read():
+def test_video_read(exp: int = 0, extension: str = None):
     "play the .mp4 file"
-    EXP_No = 0    # should load video_file.mp4 and spectra.csv from folder 000
+    EXP_No = exp   # should load video_file.mp4 and spectra.csv from folder 000
     #getting the class instance
-    FILES = ["video_file.mp4", "spectra.csv"]
+    #FILES = ["video_file.mp4", "spectra.csv"]
     exp = Files(EXP_No)
+    FILES = None
     exp_files = exp.files(files= FILES)
     print(f"files found: {exp_files} \n")
-    video_file = get_filename_with_ext(exp_files, ".mp4")
-    exp.check_video(video_file)
+    if extension == ".mp4":
+        video_file = get_filename_with_ext(exp_files, ".mp4")
+        exp.check_video(video_file)
+    else:
+        video_file = get_filename_with_ext(exp_files, ".mraw")
+        print(f"reading video file named: {video_file}")
+        pass
 
 if __name__=="__main__":
     #test_files_obj()
-    test_csv_read()
-    test_video_read()
+    test_csv_read(12)
+    test_video_read(exp=12, extension=".mraw")
     #play_video(Files(0).files()[0])
     

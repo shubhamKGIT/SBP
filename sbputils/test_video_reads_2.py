@@ -4,10 +4,10 @@ import glob
 from sbputils.pyrodata import Files
 import matplotlib.pyplot as plt
 from PIL import Image
-import rawpy
+#import rawpy
 import cv2
-import rasterio
-from rasterio.plot import show
+#import rasterio
+#from rasterio.plot import show
 import tifffile
 
 
@@ -28,7 +28,7 @@ def read_directory(data_dir: pathlib.Path) -> None:
     for dir, dirs, files in os.walk(data_dir):
         print(f"files in {data_dir} are {files}")
 
-def find_files(data_dir: pathlib.Path, file_extension: str = ".raww") -> list[pathlib.Path]:
+def find_files_with_ext(data_dir: pathlib.Path, file_extension: str = ".raww") -> list[pathlib.Path]:
     files_with_extension = []
     for file in data_dir.iterdir():
         print(type(file))
@@ -40,12 +40,8 @@ def find_files(data_dir: pathlib.Path, file_extension: str = ".raww") -> list[pa
 print(f"data file path is : {get_data_path()}")
 read_directory(get_data_path())
 
-def raw():
-    """
-    .RAW (byte) : 8bit unsigned
-    .RAWW (word) : 16bit unsigned
-    *.RAF (float) : 32bit real
-    """
+"""def raw():
+    ".RAW (byte) : 8bit unsigned; .RAWW (word) : 16bit unsigned; *.RAF (float) : 32bit real"
     "reading raw file - a sample file of .raw format using rawpy"
     raww_files = find_files(data_dir=get_data_path(), file_extension=".raww")
     for file in raww_files:
@@ -69,10 +65,10 @@ def tiff():
         with rasterio.open(file) as image:    #using rasterio
             image_array = image.read()
             #print(f"tiff image array : {image_array.shape}")
-            show(image_array)
+            show(image_array)"""
 
-def mp4():
-    mp4_files = find_files(data_dir=get_data_path(), file_extension=".mp4")
+def find_mp4_files():
+    mp4_files = find_files_with_ext(data_dir=get_data_path(), file_extension=".mp4")
     for file in mp4_files:
         #mp4_file = Image.open(file)
         print(file)
@@ -102,8 +98,8 @@ def mp4_to_jpeg(filepath):
     cv2.destroyAllWindows()
 
 
-data = raw()
-print(data.shape)
+"""data = raw()
+print(data.shape)"""
 #print(f"reading multiple files and saving in list")
 #read_many_images()
 #sample_mp4 = mp4()

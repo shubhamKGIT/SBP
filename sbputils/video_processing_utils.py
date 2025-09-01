@@ -209,7 +209,7 @@ def check_thresholded(my_frames: FramesHolder):
 
 if __name__=="__main__":
     # reading data and saving numpy in a file
-    EXP_NUM = 3
+    EXP_NUM = 12
     #main_read_video_and_dump(EXP_NUM)
     # REading data from file
     exp_vid_file_holder = VideoFilesBase(exp=EXP_NUM)

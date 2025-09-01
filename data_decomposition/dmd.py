@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.linalg import svd
-from videoUtils import read_frames_from_pkl_dump
-from files import Files
+from sbputils.videoUtils import read_frames_from_pkl_dump
+from sbputils.files import Files
 import os
 import cv2
 import matplotlib as mpl

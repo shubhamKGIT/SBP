@@ -1,7 +1,10 @@
-// some yaml file
+# metadata
+algo:
+  url: "https//www.google.com"
+  steps: "
+    - 'calcualte spectral temperature'
+    - 'use brigtness to get realtime temperature'
+    "
 data:
   url: "https//www.google.com"
-  stuff: """
-    - 'task1'
-    - 'task2'
-  """
+author: "shubham"

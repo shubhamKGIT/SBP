@@ -1,53 +1,58 @@
 
-from pyrodata import Pyrodata, Folder, FileList, analyse_video
-from files import Files, get_filename_with_ext, get_file_from_filelist
-from videoUtils import show_image, show_masked_image, get_mpl_cmap_custom_palette, get_mpl_colormap, apply_color, write_frames_to_pkl_dump
-from gray2color import gray_2_color
+from pyroDataHandler import PyroData
+from fileHandler import Files
+from utils import get_filename_with_ext, get_file_from_filelist
+from videoUtils import show_image, show_masked_image,  write_frames_to_pkl_dump
+#from gray2color import gray_2_color
 from mraw import load_video
-from typing import Type, TypeVar, Optional, Union
+from typing import Optional, Union
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import seaborn as sns
 import os
-import pathlib
 import cv2
 
 
-class SBP():
+class SBPAlgo():
     "gets pyrodata object and uses files there to read spectra, analyse spectra and video, process them for SBP algo"
-    def __init__(self, myExperiment: Optional[Pyrodata] = None):
-        if myExperiment is None:
-            self.data_holder = Pyrodata(exp_number=1)
-        else:
+    def __init__(self, myExperiment: Optional[PyroData] = None):
+        if myExperiment is not None:
             self.data_holder = myExperiment
-        self.spectra = myExperiment.read_spectral_data()
+        else:
+            raise Exception("Please pass experiment data handler object, Example: exp = Files(exp=1), PyroData(fileDatahandler = exp)")
+        self.spectra = myExperiment.read_spectral_data() # read here itself, as additional steps are needed
+        self.video_array_reader_fn = myExperiment.read_brightness_data # data persistance avoided wuth function pointer
+        self.info = myExperiment.info # using the getter for info here
+        print(f"adding wien coordinates in spectra")
+        self.add_wien_coords()
 
     def plot_raw_spectra(self, cols: list =["Wavelength", "Intensity"]):
-        fig = plt.figure(figsize = (8, 8))
+        plt.figure(figsize = (8, 8))
         #plt.plot(self.spectra["Wavelength"], self.spectra["Intensity"])
         sns.lineplot(data=self.spectra, x=cols[0], y=cols[1], hue="Frame")
         plt.show()
 
-    def add_radiation_cols(self):
+    def add_wien_coords(self):
         """ y = Intesnity /lambda**5 
             x = C2/ lambda
             - need to chunk the spectra wrt frames before doing smoothing
             - might explore smoothing before scaling with powers of lambda
             - can be plotted with plot_spectra() method
         """
+        LAMBDA_0 = 520.0  # filter wavelength in nm
         self.C2 = 14400*1000    # multiplied by 1K because we have lambda in nm
-        self.x_0 = self.C2 / 520.0     # getting reference variable value for filter
-        self.spectra["y"] = np.log(self.spectra["Intensity"]*(self.spectra["Wavelength"]**5))
-        self.spectra["x"] = self.C2/(self.spectra["Wavelength"])
+        self.x_0 = self.C2 / LAMBDA_0     # getting reference variable value for filter
+        self.spectra["wien_y"] = np.log(self.spectra["Intensity"]*(self.spectra["Wavelength"]**5))
+        self.spectra["wien_x"] = self.C2/(self.spectra["Wavelength"])
     
     def subtract_background_spectra(self):
         "read background as separate data and subtract from spectra"
         #TODO
         pass
 
-    def get_spectral_frames(self):
+    def group_spectra_by_frames(self):
         "y_smoothing will require chunking the spectra with frames and filling the NA values"
         self.frames: dict[int, pd.DataFrame] = {k: v for _, (k,v) in enumerate(self.spectra.groupby("Frame"))}
 
@@ -62,29 +67,28 @@ class SBP():
     
     def calc_framewise_rad_vars(self, use_smoothed_y: bool = True, smooth_window = 30):
         "calculate the y_diff, x_diff, T_Os and exact T_0 for X_0 for all spectral frames"
-        try:
-            if "y" not in self.spectra.columns:
-                self.add_radiation_cols(smooth_window=smooth_window)
-                self.get_spectral_frames()
-            else:
-                pass
-        except:
-            raise Exception("radiation columns missing")
+        # asuume that spectra is not grouped by frames, so we group them first
+        if "wien_y" not in self.spectra.columns:
+            self.add_wien_coords()
+            self.group_spectra_by_frames()
+        else:
+            self.group_spectra_by_frames()
+        
         #print(f"length of T_0 array is {len(self.frames.keys())}")
-        self.T_0: list[float] = np.zeros(shape = len(self.frames.keys()))
+        self.T_0 = np.zeros(shape = len(self.frames.keys()))
         #print(self.T_0)
         for k in self.frames.keys(): 
-            "loop overa all frames"
+            # loop overa all frames
             print(f"length of {k}_th frame is {len(self.frames[k].index)}\n")
             print(f"columns: {self.frames[k].columns}")
-            self.frames[k]["y_smooth"] = self.frames[k]["y"].rolling(window=smooth_window).mean()     # get the smooth_y for the given frame data
+            self.frames[k]["y_smooth"] = self.frames[k]["wien_y"].rolling(window=smooth_window).mean()     # get the smooth_y for the given frame data
             self.frames[k]["y_smooth"].fillna(0)
             # Getting delta x and delta y
             if use_smoothed_y is True:
                 self.frames[k]["del_y"] = self.frames[k]["y_smooth"].diff(-400)
             else:
-                self.frames[k]["del_y"] = self.frames[k]["y"].diff().diff(-400)
-            self.frames[k]["del_x"] = self.frames[k]["x"].diff(-400)    # should be in nm (close to 40 nm)
+                self.frames[k]["del_y"] = self.frames[k]["wien_y"].diff().diff(-400)
+            self.frames[k]["del_x"] = self.frames[k]["wien_x"].diff(-400)    # should be in nm (close to 40 nm)
             # Filling NA values
             mean_x_diff = self.frames[k]["del_x"].mean()
             mean_y_diff = self.frames[k]["del_y"].mean()
@@ -102,22 +106,22 @@ class SBP():
         if not x_0:
             x_0 = self.C2/520.0    # using 520 nm
         for k in df_dict.keys():
-            result_index = df_dict[k]["x"].sub(x_0).abs().idxmin() - (k-1)*1340    # this is a workaround patch as index was getting increased during lookup
+            result_index = df_dict[k]["wien_x"].sub(x_0).abs().idxmin() - (k-1)*1340    # this is a workaround patch as index was getting increased during lookup
             print(f"index of {k}th frame inside get_T0 is {len(df_dict[k].index)}")
             print(f"index for T_0 in frame {k} is {result_index}\n")
             #T_0s.append(df_dict[k]["T_0s"].iloc[result_index])
             T_0s.append(df_dict[k]["T_0s_avg"].iloc[result_index])    # selecting from smoothed columns
         return T_0s
     
-    def plot_T0s(self, which_frame:int = 1, T_lim: float = 1e5):
+    def plot_T0s(self, which_frame:int = 1, T_lim: float = 1e4):
         fig = plt.figure(figsize = (8, 8))
         #plt.plot(self.spectra["Wavelength"], self.spectra["Intensity"])
-        sns.lineplot(data=self.frames[which_frame], x="x", y="T_0s")
+        sns.lineplot(data=self.frames[which_frame], x="wien_x", y="T_0s")
         plt.ylim(0, T_lim)
         plt.show()
     
-    def plot_framewise_spectra(self, args = ["x", "y_smooth"], ylimit: Optional[float] = None):
-        fig = plt.figure(figsize = (8, 8))
+    def plot_framewise_spectra(self, args = ["wien_x", "y_smooth"], ylimit: Optional[float] = None):
+        plt.figure(figsize = (8, 8))
         #plt.plot(self.spectra["Wavelength"], self.spectra["Intensity"])                           
         for k in self.frames.keys():
             sns.lineplot(data=self.frames[k], x=args[0], y=args[1])
@@ -160,7 +164,7 @@ class SBP():
             start_at_vid_frame, num_of_frames = frame_sync_vid_seq(info= self.data_holder.info, spectral_frame_num= spectral_frame_num)
             num_of_frames = 50 # to keep is manageable # TODO: change this later
             b_i, b_0, b_0_over_t, cih_info = process_video(Exp_Num=None, 
-                                    filename=self.data_holder.file_holder.files(), 
+                                    filename=self.data_holder.fileHandler.expFiles, 
                                     vid_file=None,
                                     ext=".mraw",
                                     start_frame= start_at_vid_frame,
@@ -285,10 +289,10 @@ def get_b0(b_i: np.ndarray):
     "calculating b_0 from the b_i (i = surface element) of the camera frame, b_i is 2D (h, w) or 3D (h, w, c) array"
     print(f"Intermediate matrices for b_0 calculation:")
     #a = np.sum(np.multiply(np.log(b_i), b_i), axis=0)
-    bi_log = np.log(b_i+1)   # log of brightness
+    bi_log = np.log(b_i)   # log of brightness
     print()
     bi_log = np.nan_to_num(bi_log, copy=False, nan=-9999, neginf=-33333333)   # getting rig of NA and -inf
-    #bi_log = np.ceil(bi_log)
+    bi_log = np.ceil(bi_log)
     a = np.sum(np.multiply(bi_log, b_i))   # sigma(bi*log(bi))
     print(f"a: {a}\n")
     #b = np.sum(b_i, axis=0)
@@ -302,14 +306,14 @@ def get_b0(b_i: np.ndarray):
     print(f"b_0 returned !")
     return d
 
-def test_sbp_obj(mydata: Optional[Pyrodata]):
-    if mydata is None:
-        mysbp = SBP(Pyrodata(exp_number=1))
+def test_sbp_obj(myDataholder: Optional[PyroData]):
+    if myDataholder is None:
+        mysbp = SBPAlgo(myExperiment=PyroData(fileHandler=Files(exp_number=1)))
     else:
-        mysbp(SBP(myExperiment=mydata))
-    mysbp.add_radiation_cols()
-    mysbp.get_spectral_frames()
-    mysbp.plot_spectra(["x", "y"])
+        mysbp = SBPAlgo(myExperiment=myDataholder)
+    mysbp.add_wien_coords()
+    mysbp.group_spectra_by_frames()
+    mysbp.plot_spectra(["wien_x", "wien_y"])
     mysbp.calc_framewise_rad_vars(use_smoothed_y=True)
     print(mysbp.x_0, mysbp.T_0)
     mysbp.plot_T0s(which_frame=3)
@@ -346,21 +350,29 @@ def shift_bias(T_i):
     return T_i_corrected
 
 if __name__=="__main__":
-    EXP_No: int = 12
+    """EXP_No: int = 1
+    # not using handler, but passing explicit filnames
     FILES: FileList = ["video_file.mp4", "spectra.csv", "info.json"]
-    myData = Pyrodata(exp_number=12, filenames=Files(exp_number=EXP_No).files())
-    raw_spectra = myData.read_spectral_data()
-    #print(raw_spectra.head())
+    myData = PyroData(exp_num=EXP_No, expDataFileList=FILES)"""
+
+    EXP_No: int = 12
+    # not using handler, but passing explicit filnames
+    fileHandler = Files(exp_number=EXP_No)
+    myDataHandler = PyroData(fileHandler=fileHandler)
+    # using 
+    raw_spectra = myDataHandler.read_spectral_data()
+    print(f"spectral data read from DataHanlder, reading first few lines")
+    print(raw_spectra.head())
     #myData.plot_spectra()
-    sbp1 = SBP(myData)
-    sbp1.add_radiation_cols()
+    sbp1 = SBPAlgo(myDataHandler)   # instantiate
+    #sbp1.add_wien_coords()
     #print(sbp1.spectra)
     sbp1.plot_raw_spectra(["Wavelength", "Intensity"])
-    sbp1.plot_raw_spectra(["x", "y"])
-    sbp1.get_spectral_frames()
+    sbp1.plot_raw_spectra(["wien_x", "wien_y"])
+    sbp1.group_spectra_by_frames()
     sbp1.calc_framewise_rad_vars(use_smoothed_y=True, smooth_window=10)
-    sbp1.plot_framewise_spectra(["x", "y_smooth"])
-    sbp1.plot_T0s(17, 10000)
+    sbp1.plot_framewise_spectra(["wien_x", "y_smooth"])
+    sbp1.plot_T0s(which_frame=3, T_lim=10000)
     print(f"framewise T0s: {sbp1.T_0}")
     #sbp1.video_brightness_data(None)
     #sbp1.plot_brightness(sbp1.b0)
@@ -371,11 +383,11 @@ if __name__=="__main__":
     print(f"max in b_i[10]: {np.max(b_i[10])}")
     #sbp1.plot_brightness(T_i[10])
     TEMP_DUMP = "temperature.pkl"
-    temp_filepath = os.path.join(sbp1.data_holder.file_holder.expFolder, TEMP_DUMP)
+    temp_filepath = os.path.join(sbp1.data_holder.fileHandler.expFolder, TEMP_DUMP)
     print(f"dumping calculated temperatues in {temp_filepath}")
     write_frames_to_pkl_dump(T_i, temp_filepath)
     # Files with temperature data written, can close the main here to be read and plotted elsewhere
-    show_masked_image(image_data=T_i[10], cmap='plasma', vmin_max=(500, 3000))
+    #show_masked_image(image_data=T_i[10], cmap='plasma', vmin_max=(2500, 3000))
     print(f"Overall brightness over time t: {b_0_over_t}")
     print(f"Individual frame b_0: {b_0}")
     print(f"Framewise reference temperaure: {T_j}")

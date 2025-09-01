@@ -1,0 +1,44 @@
+
+
+# Rethinking of most important elements and how they are structured
+
+1. find data in data folder based on the experiment number
+    def find_dataFiles(exp_numer):
+        return mRawVideo, csvSpectra
+
+2. Strucute to hold the spectra, structute to hold the mRawVideo
+    class DataHodler():
+        "just holds path link, can read on demand"
+        filePaths = find_dataFiles()
+
+        sanity_check(filesPaths)
+        
+        correlation_matrix = correlated_brightenss_to_spectra(json_input)
+
+3. Structure to read datasets and algo steps
+    class AlgoStepper(dataholder):
+        "read data when needed and run the algo step"
+        self.dataholder = dataholder
+
+        def read_data():
+            (brigtness, frame_number) = readVideoFile(video_file)
+            (spectra, spectral_frame) = readSpectra(spectral_file)
+            return [(brightness, frame_number), (spectra, frame_number), (coorelation matrix)]
+            dump_data_in_pickle(brighness, spectra, coorelation_matrix)
+        
+        def sanity_check()
+            brightness has data?, plot and test, dumped files reading (looks good?)
+            spectra has data?, plot and test, dumped files reading (looks good?)
+            coorelation matrix looks good? test
+    
+        def run_algo_part1():
+            "runs this part for all spectral frames"
+            spectral_temperaure = get_temp(spectra, frame_number)
+            correct_temperature = correct(slope_correction)
+            b0 = log_acuum_brightness(frame)
+        
+        def run_algo_part2(frame_numbers):
+            "runs this part for selected frames"
+            for frame in frame_numbers:
+                    FrameHolder, SpectraHolder = read_data_from_dumped(frame_numbers)
+            temperature = run_core_algo_on_frame()

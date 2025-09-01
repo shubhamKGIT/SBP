@@ -12,7 +12,6 @@ import matplotlib as mpl
 # import cmapy
 from videoUtils import get_mpl_cmap_custom_palette, get_mpl_colormap, apply_color
 
-
 def gray_2_color(frames, custom_mpl_cmap = None):
     "converts gray image or video to color one"
     if len(frames.shape) == 2:
@@ -75,7 +74,6 @@ if __name__=="__main__":
     cv2.destroyAllWindows()
     plt.imshow(img, cmap=palette)
     plt.show()
-    
 
     #test_gray_to_colour(palette)
 

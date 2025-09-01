@@ -3,7 +3,23 @@ import xml.etree.ElementTree as ET
 import numpy as np
 import xmltodict
 
-def find_files_in_experiment_folder(experiment_folder):
+"""the functions from mraw.py file are redone here for some reason, 
+maybe I wanted to learn hwo to do this on my own and test it here
+"""
+
+def get_experiment_folder(experiment_number):
+    # Get the directory of the current script being executed
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    # Navigate to the parent folder
+    parent_dir = os.path.dirname(script_dir)
+    # Path to the "data" subfolder
+    data_dir = os.path.join(parent_dir, 'data')
+    # Find the folder for the specified experiment number
+    experiment_folder = os.path.join(data_dir, f"{experiment_number:03d}") 
+    # Check if the experiment folder exists
+    return experiment_folder
+
+def find_video_files_in_experiment_folder(experiment_folder):
     """ helper function to find the raw files in experiment folder, assumes one file written only
 
     ARGS
@@ -60,7 +76,7 @@ def read_cihx_file(file_path):
     return raw_data"""
 
 def read_mraw_file(file_path, frame_shape, dtype=np.uint16):
-    """reads the contents in mrwa file
+    """reads the contents in mraw file
 
     ARGS
     ----
@@ -85,10 +101,9 @@ def read_mraw_file(file_path, frame_shape, dtype=np.uint16):
     print(shape)
     # Create a memory-mapped array to access the file contents
     memmap_array = np.memmap(file_path, dtype=dtype, mode='r', shape= shape)
-
     return memmap_array
 
-def process_experiment_data(experiment_number):
+def process_video_data(experiment_number):
     """helper abstraction function to call the video file reader based on experiment number
 
     ARGS
@@ -101,20 +116,12 @@ def process_experiment_data(experiment_number):
         cihx_info, mrwa_data, mraw_file
             returns dict for video file info, data from mraw file and path of mraw file read
     """
-    # Get the directory of the current script being executed
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    # Navigate to the parent folder
-    parent_dir = os.path.dirname(script_dir)
-    # Path to the "data" subfolder
-    data_dir = os.path.join(parent_dir, 'data')
-    # Find the folder for the specified experiment number
-    experiment_folder = os.path.join(data_dir, f"{experiment_number:03d}") 
-    # Check if the experiment folder exists
+    experiment_folder = get_experiment_folder(experiment_number)
     if not os.path.exists(experiment_folder):
         print(f"Experiment folder {experiment_number:03d} does not exist.")
         return None, None, None
     # Find .mraw and .cihx files
-    mraw_file, cihx_file = find_files_in_experiment_folder(experiment_folder)
+    mraw_file, cihx_file = find_video_files_in_experiment_folder(experiment_folder)
     # Read .cihx file
     cihx_info = read_cihx_file(cihx_file)
     # Read .mraw file
@@ -123,7 +130,7 @@ def process_experiment_data(experiment_number):
 
 if __name__=="__main__":
     # Example usage:
-    experiment_number = 12  # Replace with the specific experiment number
+    experiment_number = 21  # Replace with the specific experiment number
     print(f"item size of test array {np.array([1, 2, 4], dtype=np.uint8).itemsize}")
-    chix_info, mraw_data, mraw_file = process_experiment_data(experiment_number)
+    chix_info, mraw_data, mraw_file = process_video_data(experiment_number)
     print(mraw_data.shape)

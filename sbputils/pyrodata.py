@@ -54,7 +54,7 @@ class Pyrodata():
     
     @property
     def experiment_number(self):
-        return self._exp
+        return self._exp   # only reads here, we can add a setter if we want same instance for multiple exp use
 
     @property
     def info(self):
@@ -83,17 +83,10 @@ class Pyrodata():
 
 def read_json(json_file: str):
     "return data from json file"
-    with open(json_file) as f:
+    with open(json_file, 'r') as f:
         data = json.load(f)
         f.close()
     return data
-
-def test_pyrodata_obj():
-    "to test the Pyrodata class and its methods"
-    mydata = Pyrodata(exp_number= 1)
-    mydata.read_spectral_data()
-    mydata.plot_spectra()
-    mydata.read_video_data()
 
 def analyse_video(video_path: str, num_frame: Optional[int] = 10) -> np.ndarray:
     "read video file, return some number of frame data (prefer small number) as numpy array"
@@ -121,6 +114,13 @@ def analyse_video(video_path: str, num_frame: Optional[int] = 10) -> np.ndarray:
     print(f"no. of frames = {i}")
     print(f"array shape: {frame_array.shape}")
     return frame_array
+
+def test_pyrodata_obj():
+    "to test the Pyrodata class and its methods"
+    mydata = Pyrodata(exp_number= 1)
+    mydata.read_spectral_data()
+    mydata.plot_spectra()
+    mydata.read_video_data()
 
 if __name__== "__main__":
     "getting all data files and registering it in objects to open camera data and spectra"
